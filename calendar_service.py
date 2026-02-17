@@ -110,6 +110,7 @@ class CalendarService:
             }
 
         try:
+            logger.info(f"Enviando a Google API: {event_body}")
             event = (
                 self.service.events()
                 .insert(calendarId=self.calendar_id, body=event_body)
