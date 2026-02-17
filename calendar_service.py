@@ -105,12 +105,29 @@ class CalendarService:
         if not end_dt:
             end_dt = start_dt + timedelta(hours=1)
 
+        # Mapeo de Prioridades a Emojis y Colores de Google Calendar
+        # Colores Google: 11 (Rojo), 5 (Amarillo), 2 (Verde)
+        prio_map = {
+            "alta": {"emoji": "🔴", "color": "11"},
+            "media": {"emoji": "🟡", "color": "5"},
+            "baja": {"emoji": "🟢", "color": "2"},
+        }
+        
+        current_prio = "media"
+        enriched_summary = summary
+        color_id = "5"
+
+        if metadata:
+            current_prio = metadata.get("prioridad", "media").lower()
+            prio_data = prio_map.get(current_prio, prio_map["media"])
+            enriched_summary = f"{prio_data['emoji']} {summary}"
+            color_id = prio_data["color"]
+
         # Enriquecer descripción con metadatos si existen
         enriched_desc = description
         if metadata:
-            prio = metadata.get("prioridad", "media").upper()
             cat = metadata.get("categoria", "personal").upper()
-            meta_line = f"--- METADATA ---\nPRIORIDAD: {prio}\nCATEGORIA: {cat}\n"
+            meta_line = f"--- METADATA ---\nPRIORIDAD: {current_prio.upper()}\nCATEGORIA: {cat}\n"
             enriched_desc = f"{meta_line}\n{description}".strip()
 
         if all_day:
@@ -120,19 +137,21 @@ class CalendarService:
                 end_date_str = end_dt.strftime("%Y-%m-%d")
 
             event_body = {
-                "summary": summary,
+                "summary": enriched_summary,
                 "description": enriched_desc,
                 "location": location,
                 "visibility": "public",
+                "colorId": color_id,
                 "start": {"date": start_dt.strftime("%Y-%m-%d")},
                 "end": {"date": end_date_str},
             }
         else:
             event_body = {
-                "summary": summary,
+                "summary": enriched_summary,
                 "description": enriched_desc,
                 "location": location,
                 "visibility": "public",
+                "colorId": color_id,
                 "start": {
                     "dateTime": start_dt.isoformat(),
                     "timeZone": config.TIMEZONE,
