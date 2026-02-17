@@ -34,15 +34,15 @@ async def handle_natural_language(update: Update, context: ContextTypes.DEFAULT_
     respuesta = result.get("respuesta", "")
 
     if intencion == "crear":
-        await _handle_crear(update, context, processing_msg, datos, respuesta)
+        await handle_crear(update, context, processing_msg, datos, respuesta)
     elif intencion == "listar":
-        await _handle_listar(update, context, processing_msg, datos, respuesta)
+        await handle_listar(update, context, processing_msg, datos, respuesta)
     elif intencion == "eliminar":
-        await _handle_eliminar(update, context, processing_msg, datos, respuesta)
+        await handle_eliminar(update, context, processing_msg, datos, respuesta)
     elif intencion == "completar":
-        await _handle_completar(update, context, processing_msg, datos, respuesta)
+        await handle_completar(update, context, processing_msg, datos, respuesta)
     elif intencion == "consultar":
-        await _handle_consultar(update, context, processing_msg, datos, respuesta)
+        await handle_consultar(update, context, processing_msg, datos, respuesta)
     else:
         await processing_msg.edit_text(
             respuesta or "No entendí bien. Prueba con algo como:\n"
@@ -53,7 +53,7 @@ async def handle_natural_language(update: Update, context: ContextTypes.DEFAULT_
         )
 
 
-async def _handle_crear(update, context, processing_msg, datos, respuesta):
+async def handle_crear(update, context, processing_msg, datos, respuesta):
     """Crea un evento a partir de datos extraídos por NLP."""
     titulo = datos.get("titulo", "")
     tipo = datos.get("tipo", "reunion")
@@ -183,7 +183,7 @@ async def confirmar_nlp_crear(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text(f"❌ Error al crear: {e}")
 
 
-async def _handle_listar(update, context, processing_msg, datos, respuesta):
+async def handle_listar(update, context, processing_msg, datos, respuesta):
     """Lista eventos: tareas pendientes + eventos futuros, con soporte para fecha específica."""
     try:
         cal = CalendarService()
@@ -297,7 +297,7 @@ async def _handle_listar(update, context, processing_msg, datos, respuesta):
         await processing_msg.edit_text(f"❌ Error: {e}")
 
 
-async def _handle_eliminar(update, context, processing_msg, datos, respuesta):
+async def handle_eliminar(update, context, processing_msg, datos, respuesta):
     """Busca y ofrece eliminar un evento por nombre."""
     titulo_buscar = datos.get("titulo", "")
 
@@ -354,7 +354,7 @@ async def _handle_eliminar(update, context, processing_msg, datos, respuesta):
         await processing_msg.edit_text(f"❌ Error: {e}")
 
 
-async def _handle_completar(update, context, processing_msg, datos, respuesta):
+async def handle_completar(update, context, processing_msg, datos, respuesta):
     """Marca una tarea como completada buscándola por nombre."""
     from reminder_scheduler import COMPLETED_MARKER
     titulo_buscar = datos.get("titulo", "")
@@ -453,7 +453,7 @@ async def _handle_completar(update, context, processing_msg, datos, respuesta):
         await processing_msg.edit_text(f"❌ Error: {e}")
 
 
-async def _handle_consultar(update, context, processing_msg, datos, respuesta):
+async def handle_consultar(update, context, processing_msg, datos, respuesta):
     """Responde consultas sobre la agenda."""
     try:
         cal = CalendarService()

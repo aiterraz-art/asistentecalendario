@@ -129,3 +129,58 @@ def parse_user_message(message: str) -> dict:
             "datos": {},
             "respuesta": "Hubo un error procesando tu mensaje. Intenta de nuevo.",
         }
+
+
+def parse_voice_message(audio_file_path: str) -> dict:
+    """Procesa un archivo de audio con Gemini y devuelve intención + datos.
+
+    Args:
+        audio_file_path: Ruta local al archivo de audio (ej: .ogg).
+
+    Returns:
+        dict con claves: intencion, datos, respuesta
+    """
+    now = datetime.now(TZ)
+    current_dt = now.strftime("%A %d de %B de %Y, %H:%M")
+
+    prompt = SYSTEM_PROMPT.format(
+        current_datetime=current_dt,
+        timezone=config.TIMEZONE,
+    )
+
+    try:
+        # Leer el archivo de audio
+        with open(audio_file_path, "rb") as f:
+            audio_data = f.read()
+
+        response = _get_client().models.generate_content(
+            model=MODEL,
+            contents=[
+                {"inline_data": {"mime_type": "audio/ogg", "data": audio_data}},
+                prompt,
+            ],
+            config=genai.types.GenerateContentConfig(
+                temperature=0.1,
+                response_mime_type="application/json",
+            ),
+        )
+
+        raw = response.text.strip()
+        # Limpiar posibles bloques markdown
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1]
+            if raw.endswith("```"):
+                raw = raw[:-3]
+            raw = raw.strip()
+
+        result = json.loads(raw)
+        logger.info(f"NLP Audio resultado: {result}")
+        return result
+
+    except Exception as e:
+        logger.error(f"Error procesando audio con Gemini: {e}")
+        return {
+            "intencion": "otro",
+            "datos": {},
+            "respuesta": "Lo siento, no pude procesar tu mensaje de voz correctamente.",
+        }
