@@ -239,6 +239,56 @@ async def send_weekly_report(context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error en reporte semanal: {e}")
 
 
+async def check_supplements_and_remind(context: ContextTypes.DEFAULT_TYPE):
+    """Job frecuente (cada minuto): verifica si hay suplementos por tomar."""
+    chat_id = config.AUTHORIZED_USER_ID
+    if not chat_id: return
+
+    now = datetime.now(TZ)
+    current_time = now.strftime("%H:%M")
+    current_date = now.strftime("%Y-%m-%d")
+
+    try:
+        from supplement_service import SupplementService
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        service = SupplementService()
+        pending = service.get_pending(current_time, current_date)
+
+        if not pending:
+            return
+
+        # Agrupar suplementos por mensaje (en este bot solo hay un usuario, así que todos juntos)
+        names = [s["name"] for s in pending]
+        names_str = ", ".join(names)
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Hecho", callback_data=f"supp_done|{','.join(names)}"),
+                InlineKeyboardButton("⏳ en 30 min", callback_data=f"supp_snooze|{','.join(names)}"),
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await context.bot.send_message(
+            chat_id=int(chat_id),
+            text=f"💊 *¡Hora de tu suplementación!* ({now.strftime('%H:%M')})\n\n"
+                 f"Debes tomar:\n• *{names_str}* \n\n"
+                 f"¿Ya lo hiciste?",
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+        
+        # Para evitar enviar el mismo mensaje cada minuto de esa hora, 
+        # marcamos el 'next_reminder' como +1 minuto temporalmente si es la hora exacta,
+        # o simplemente confiamos en que 'get_pending' filtre los que ya enviamos reintento.
+        # Mejor: si es la hora exacta, ponemos un reintento en 30 min por defecto para que no se repita.
+        service.set_next_reminder(names, (now + timedelta(minutes=30)).isoformat())
+
+    except Exception as e:
+        logger.error(f"Error en check de suplementos: {e}")
+
+
 async def renew_uncompleted_tasks(context: ContextTypes.DEFAULT_TYPE, target_date=None):
     """Job nocturno: renueva tareas no completadas para el día siguiente.
     
@@ -345,7 +395,10 @@ def setup_reminders(app):
     # 0 = Lunes, 6 = Domingo
     job_queue.run_daily(send_weekly_report, time=time(21, 0), days=(6,), name="weekly_report")
 
-    # 4. Check de agenda cada 2 horas (versión original mejorada)
+    # 4. Check de Suplementos (cada minuto)
+    job_queue.run_repeating(check_supplements_and_remind, interval=60, first=10, name="supplements")
+
+    # 5. Check de agenda cada 2 horas (versión original mejorada)
     reminder_times = [
         time(6, 30), time(8, 30), time(10, 30), time(12, 30),
         time(14, 30), time(16, 30), time(18, 30), time(20, 30),

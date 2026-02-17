@@ -21,6 +21,7 @@ from handlers.delete_event import eliminar_command, get_delete_callback_handler
 from handlers.complete_event import completar_command, get_completar_callback_handler
 from handlers.natural_language import handle_natural_language, get_nlp_callback_handler
 from handlers.voice import handle_voice
+from handlers.supplements import get_supplement_callback_handler
 from reminder_scheduler import setup_reminders
 
 # Configurar logging
@@ -77,6 +78,7 @@ def main():
     app.add_handler(get_delete_callback_handler())
     app.add_handler(get_completar_callback_handler())
     app.add_handler(get_nlp_callback_handler())
+    app.add_handler(get_supplement_callback_handler())
 
     # Mensajes de texto libre → NLP (va último, catch-all)
     app.add_handler(

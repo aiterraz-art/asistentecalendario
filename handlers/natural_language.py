@@ -43,11 +43,15 @@ async def handle_natural_language(update: Update, context: ContextTypes.DEFAULT_
         await handle_completar(update, context, processing_msg, datos, respuesta)
     elif intencion == "consultar":
         await handle_consultar(update, context, processing_msg, datos, respuesta)
+    elif intencion == "suplementacion":
+        from handlers.supplements import handle_suplemento_nlp
+        await handle_suplemento_nlp(update, context, processing_msg, datos, respuesta)
     else:
         await processing_msg.edit_text(
             respuesta or "No entendí bien. Prueba con algo como:\n"
             '• _"Reunión mañana a las 3pm"_\n'
             '• _"¿Qué tengo hoy?"_\n'
+            '• _"Anotar Omega 3 todos los días a las 9 am"_\n'
             '• _"Elimina la reunión del viernes"_',
             parse_mode="Markdown",
         )
