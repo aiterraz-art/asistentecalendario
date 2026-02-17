@@ -66,6 +66,21 @@ class CalendarService:
         end = now + timedelta(days=days)
         return self.list_events(now, end)
 
+    def check_conflicts(self, start_dt: datetime, end_dt: datetime) -> list[dict]:
+        """Busca eventos que se solapen con el rango dado."""
+        try:
+            events = self.list_events(start_dt, end_dt)
+            # Filtrar eventos que no sean de todo el día para mayor precisión en conflictos de hora
+            conflicts = []
+            for e in events:
+                start = e.get("start", {})
+                if "dateTime" in start:
+                    conflicts.append(e)
+            return conflicts
+        except Exception as e:
+            logger.error(f"Error comprobando conflictos: {e}")
+            return []
+
     def create_event(
         self,
         summary: str,
@@ -73,23 +88,32 @@ class CalendarService:
         end_dt: Optional[datetime] = None,
         description: str = "",
         all_day: bool = False,
+        location: str = "",
+        metadata: Optional[dict] = None,
     ) -> dict:
         """Crea un evento en Google Calendar.
 
         Args:
             summary: Título del evento.
             start_dt: Fecha/hora de inicio (con timezone).
-            end_dt: Fecha/hora de fin. Si es None, se pone 1 hora después.
+            end_dt: Fecha/hora de fin.
             description: Descripción opcional.
             all_day: Si es True, crea un evento de día completo.
+            location: Ubicación física o nombre del lugar.
+            metadata: Diccionario opcional con prioridad y categoría.
         """
         if not end_dt:
             end_dt = start_dt + timedelta(hours=1)
 
+        # Enriquecer descripción con metadatos si existen
+        enriched_desc = description
+        if metadata:
+            prio = metadata.get("prioridad", "media").upper()
+            cat = metadata.get("categoria", "personal").upper()
+            meta_line = f"--- METADATA ---\nPRIORIDAD: {prio}\nCATEGORIA: {cat}\n"
+            enriched_desc = f"{meta_line}\n{description}".strip()
+
         if all_day:
-            # Para Google Calendar, la fecha de fin en eventos de todo el día es EXCLUSIVA.
-            # Si queremos que sea solo hoy (17), la fecha de fin debe ser mañana (18).
-            # Si enviamos la misma fecha, Google se confunde y algunas apps restan 1 día (mostrando 16).
             if not end_dt or end_dt.date() <= start_dt.date():
                 end_date_str = (start_dt + timedelta(days=1)).strftime("%Y-%m-%d")
             else:
@@ -97,7 +121,8 @@ class CalendarService:
 
             event_body = {
                 "summary": summary,
-                "description": description,
+                "description": enriched_desc,
+                "location": location,
                 "visibility": "public",
                 "start": {"date": start_dt.strftime("%Y-%m-%d")},
                 "end": {"date": end_date_str},
@@ -105,7 +130,8 @@ class CalendarService:
         else:
             event_body = {
                 "summary": summary,
-                "description": description,
+                "description": enriched_desc,
+                "location": location,
                 "visibility": "public",
                 "start": {
                     "dateTime": start_dt.isoformat(),
@@ -173,8 +199,32 @@ class CalendarService:
 def format_event(event: dict, show_past_marker: bool = True) -> str:
     """Formatea un evento para mostrarlo en Telegram."""
     summary = event.get("summary", "Sin título")
+    description = event.get("description", "")
+    location = event.get("location", "")
     now = datetime.now(TZ)
     is_past = False
+
+    # Extraer metadatos de la descripción si existen
+    prio_label = ""
+    cat_label = ""
+    clean_desc = description
+    if "--- METADATA ---" in description:
+        lines = description.split("\n")
+        for line in lines:
+            if "PRIORIDAD:" in line:
+                prio = line.split("PRIORIDAD:")[1].strip().lower()
+                prio_map = {"alta": "🔴 Alta", "media": "🟡 Media", "baja": "🟢 Baja"}
+                prio_label = prio_map.get(prio, "")
+            elif "CATEGORIA:" in line:
+                cat = line.split("CATEGORIA:")[1].strip().lower()
+                cat_label = f"#{cat}"
+        # Limpiar descripción para mostrar solo el contenido real
+        if "--- METADATA ---" in description:
+            parts = description.split("--- METADATA ---")
+            if len(parts) > 1:
+                # El contenido suele estar después de la metadata o antes si el orden cambia
+                # En nuestro caso lo pusimos después.
+                clean_desc = parts[1].split("\n", 3)[-1].strip()
 
     start = event.get("start", {})
     if "dateTime" in start:
@@ -192,7 +242,18 @@ def format_event(event: dict, show_past_marker: bool = True) -> str:
         when = "📅 Fecha no disponible"
 
     past_marker = " ✅ _pasado_" if (is_past and show_past_marker) else ""
-    description = event.get("description", "")
-    desc_line = f"\n📝 {description}" if description else ""
+    
+    # Construir bloque de detalles
+    details = []
+    if prio_label: details.append(f"❗ *Prio:* {prio_label}")
+    if cat_label: details.append(f"🏷️ {cat_label}")
+    if location:
+        # Codificar ubicación para URL de Maps
+        import urllib.parse
+        loc_encoded = urllib.parse.quote(location)
+        details.append(f"📍 [Ver Mapa](https://www.google.com/maps/search/?api=1&query={loc_encoded})")
+    
+    details_str = ("\n  " + " | ".join(details)) if details else ""
+    desc_line = f"\n📝 {clean_desc}" if clean_desc else ""
 
-    return f"• *{summary}*{past_marker}\n  {when}{desc_line}"
+    return f"• *{summary}*{past_marker}\n  {when}{details_str}{desc_line}"

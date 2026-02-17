@@ -47,9 +47,9 @@ TIPOS DE EVENTO:
 - "tarea": NO tiene hora específica, es algo que hay que hacer durante el día (ej: "enviar pedido", "mejorar el prompt", "comprar materiales"). Las tareas SIEMPRE son de día completo.
 
 DEBES responder SIEMPRE en formato JSON válido con esta estructura:
-{{
+{
     "intencion": "crear|listar|eliminar|completar|consultar|otro",
-    "datos": {{
+    "datos": {
         "titulo": "título del evento (si aplica)",
         "tipo": "reunion|tarea",
         "fecha": "YYYY-MM-DD (si aplica)",
@@ -57,10 +57,13 @@ DEBES responder SIEMPRE en formato JSON válido con esta estructura:
         "hora_fin": "HH:MM (formato 24h, SOLO para reuniones, si no se especifica dejar null)",
         "descripcion": "descripción adicional (si aplica)",
         "dia_completo": true,
-        "rango_dias": 7
-    }},
+        "rango_dias": 7,
+        "prioridad": "alta|media|baja",
+        "categoria": "personal|trabajo|salud|casa|otro",
+        "ubicacion": "nombre del lugar o dirección (si aplica)"
+    },
     "respuesta": "Una respuesta breve y amigable para el usuario sobre lo que entendiste"
-}}
+}
 
 REGLAS IMPORTANTES:
 - Si el usuario dice "mañana", calcula la fecha correcta
@@ -73,6 +76,9 @@ REGLAS IMPORTANTES:
 - Si no se especifica fecha para una tarea, usar la fecha de HOY
 - Para "listar", rango_dias indica cuántos días hacia adelante mostrar
 - Para "completar", extraer el título de lo que completó en "titulo"
+- **Prioridad**: "alta" si usa palabras como "urgente", "importante", "prioritario". "baja" si dice "cuando puedas", "no corre prisa". Por defecto "media".
+- **Categoría**: Clasifica según el contexto (ej: dentista -> salud, oficina -> trabajo, supermercado -> casa). Por defecto "personal" si es ambiguo o "otro".
+- **Ubicación**: Extrae nombres de lugares o direcciones físicas si se mencionan.
 - Responde siempre en español
 - NO incluyas explicaciones fuera del JSON
 """

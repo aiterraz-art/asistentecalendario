@@ -83,67 +83,84 @@ async def handle_crear(update, context, processing_msg, datos, respuesta):
             f"{respuesta}\n\n❓ No pude identificar la fecha. "
             "¿Puedes incluir cuándo sería?"
         )
-        return
+    
+    # Extraer nuevos metadatos
+    prioridad = datos.get("prioridad", "media")
+    categoria = datos.get("categoria", "personal")
+    ubicacion = datos.get("ubicacion", "")
 
-    try:
-        fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
-    except (ValueError, TypeError):
+    if not titulo or not fecha_str:
         await processing_msg.edit_text(
-            f"{respuesta}\n\n❓ No pude interpretar la fecha correctamente."
+            respuesta or "Me falta el título o la fecha para crear el evento."
         )
         return
 
-    if dia_completo or not hora_inicio:
-        start_dt = TZ.localize(datetime.combine(fecha, datetime.min.time()))
-        all_day = True
-        hora_display = "Todo el día"
-    else:
-        try:
-            hora = datetime.strptime(hora_inicio, "%H:%M").time()
-            start_dt = TZ.localize(datetime.combine(fecha, hora))
-            all_day = False
-            hora_display = hora_inicio
-        except (ValueError, TypeError):
+    try:
+        from datetime import timedelta, time as dt_time
+        fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+        if dia_completo or not hora_str:
             start_dt = TZ.localize(datetime.combine(fecha, datetime.min.time()))
+            end_dt = start_dt + timedelta(days=1)
             all_day = True
-            hora_display = "Todo el día"
+            time_str = "Todo el día"
+        else:
+            hora = datetime.strptime(hora_str, "%H:%M").time()
+            start_dt = TZ.localize(datetime.combine(fecha, hora))
+            if hora_fin_str:
+                hora_fin = datetime.strptime(hora_fin_str, "%H:%M").time()
+                end_dt = TZ.localize(datetime.combine(fecha, hora_fin))
+            else:
+                end_dt = start_dt + timedelta(hours=1)
+            all_day = False
+            time_str = f"{hora_str}"
 
-    end_dt = None
-    if hora_fin and not all_day:
-        try:
-            hora_f = datetime.strptime(hora_fin, "%H:%M").time()
-            end_dt = TZ.localize(datetime.combine(fecha, hora_f))
-        except (ValueError, TypeError):
-            pass
+        # Guardar en context para la confirmación
+        context.user_data["confirm_event"] = {
+            "summary": titulo,
+            "start_dt": start_dt,
+            "end_dt": end_dt,
+            "description": descripcion,
+            "all_day": all_day,
+            "location": ubicacion,
+            "metadata": {"prioridad": prioridad, "categoria": categoria}
+        }
 
-    # Guardar datos en contexto para confirmación
-    context.user_data["nlp_evento"] = {
-        "titulo": titulo,
-        "start_dt": start_dt,
-        "end_dt": end_dt,
-        "descripcion": descripcion,
-        "all_day": all_day,
-    }
+        # 🧠 DETECCIÓN DE CONFLICTOS
+        warning_conflict = ""
+        if not all_day:
+            cal = CalendarService()
+            conflicts = cal.check_conflicts(start_dt, end_dt)
+            if conflicts:
+                n = len(conflicts)
+                warning_conflict = f"\n\n⚠️ *CONFLICTO:* Tienes {n} evento(s) a esa misma hora."
 
-    keyboard = [
-        [
-            InlineKeyboardButton("✅ Crear", callback_data="nlp_crear_si"),
-            InlineKeyboardButton("❌ Cancelar", callback_data="nlp_crear_no"),
+        # Construir resumen para confirmación
+        prio_emoji = {"alta": "🔴", "media": "🟡", "baja": "🟢"}.get(prioridad, "🟡")
+        meta_info = f"\n❗ *Prio:* {prio_emoji} {prioridad.capitalize()} | 🏷️ #{categoria}"
+        if ubicacion:
+            meta_info += f"\n📍 *Ubicación:* {ubicacion}"
+
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Confirmar", callback_data="confirm_nlp_yes"),
+                InlineKeyboardButton("❌ Cancelar", callback_data="confirm_nlp_no"),
+            ]
         ]
-    ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
 
-    tipo_label = "📝 Tarea" if tipo == "tarea" else "📅 Reunión"
-    await processing_msg.edit_text(
-        f"{respuesta}\n\n"
-        f"📋 *Resumen ({tipo_label}):*\n"
-        f"📌 *{titulo}*\n"
-        f"📅 {fecha.strftime('%d/%m/%Y')}\n"
-        f"🕐 {hora_display}\n"
-        f"{'📝 ' + descripcion if descripcion else ''}\n\n"
-        "¿Confirmo la creación?",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
+        await processing_msg.edit_text(
+            f"¿Confirmas este evento?{warning_conflict}\n\n"
+            f"📌 *{titulo}*\n"
+            f"📅 {fecha.strftime('%d/%m/%Y')} | 🕐 {time_str}"
+            f"{meta_info}\n"
+            f"{'📝 ' + descripcion if descripcion else ''}",
+            parse_mode="Markdown",
+            reply_markup=reply_markup,
+        )
+
+    except Exception as e:
+        logger.error(f"Error parseando fechas en handle_crear: {e}")
+        await processing_msg.edit_text("❌ Hubo un error con el formato de fecha o hora.")
 
 
 async def confirmar_nlp_crear(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -151,36 +168,39 @@ async def confirmar_nlp_crear(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
 
-    if query.data == "nlp_crear_no":
+    action = query.data.split('_')[-1] # 'yes' or 'no'
+
+    if action == "no":
         await query.edit_message_text("❌ Evento cancelado.")
-        context.user_data.pop("nlp_evento", None)
+        context.user_data.pop("confirm_event", None)
         return
 
-    evento_data = context.user_data.pop("nlp_evento", None)
-    if not evento_data:
-        await query.edit_message_text("❌ No hay evento pendiente para crear.")
-        return
-
-    try:
-        cal = CalendarService()
-        event = cal.create_event(
-            summary=evento_data["titulo"],
-            start_dt=evento_data["start_dt"],
-            end_dt=evento_data["end_dt"],
-            description=evento_data.get("descripcion", ""),
-            all_day=evento_data["all_day"],
-        )
-
-        link = event.get("htmlLink", "")
-        await query.edit_message_text(
-            f"✅ *Evento creado!*\n\n"
-            f"📌 {evento_data['titulo']}\n"
-            f"🔗 [Ver en Google Calendar]({link})",
-            parse_mode="Markdown",
-        )
-    except Exception as e:
-        logger.error(f"Error creando evento NLP: {e}")
-        await query.edit_message_text(f"❌ Error al crear: {e}")
+    if action == "yes":
+        event_data = context.user_data.pop("confirm_event", None)
+        if event_data:
+            try:
+                cal = CalendarService()
+                event = cal.create_event(
+                    summary=event_data["summary"],
+                    start_dt=event_data["start_dt"],
+                    end_dt=event_data["end_dt"],
+                    description=event_data["description"],
+                    all_day=event_data["all_day"],
+                    location=event_data.get("location", ""),
+                    metadata=event_data.get("metadata")
+                )
+                link = event.get("htmlLink", "")
+                await query.edit_message_text(
+                    f"✅ *Evento creado!*\n\n"
+                    f"📌 {event_data['summary']}\n"
+                    f"🔗 [Ver en Google Calendar]({link})",
+                    parse_mode="Markdown",
+                )
+            except Exception as e:
+                logger.error(f"Error creando evento NLP: {e}")
+                await query.edit_message_text(f"❌ Error al crear: {e}")
+        else:
+            await query.edit_message_text("❌ No hay evento pendiente para crear.")
 
 
 async def handle_listar(update, context, processing_msg, datos, respuesta):
@@ -478,4 +498,4 @@ async def handle_consultar(update, context, processing_msg, datos, respuesta):
 
 def get_nlp_callback_handler() -> CallbackQueryHandler:
     """Devuelve el handler para callbacks de NLP crear."""
-    return CallbackQueryHandler(confirmar_nlp_crear, pattern=r"^nlp_crear_")
+    return CallbackQueryHandler(confirmar_nlp_crear, pattern=r"^confirm_nlp_")

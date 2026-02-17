@@ -141,6 +141,104 @@ async def check_agenda_and_remind(context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error en check de agenda: {e}")
 
 
+async def send_morning_briefing(context: ContextTypes.DEFAULT_TYPE):
+    """Job matutino (7:30 AM): envía el resumen del día."""
+    chat_id = config.AUTHORIZED_USER_ID
+    if not chat_id: return
+
+    logger.info("☀️ Enviando briefing matutino...")
+    try:
+        cal = CalendarService()
+        today_events = cal.get_today_events()
+        
+        if not today_events:
+            await context.bot.send_message(
+                chat_id=int(chat_id),
+                text="☀️ *¡Buenos días!*\n\nHoy no tienes eventos agendados. ¡Disfruta tu día libre! 🎉",
+                parse_mode="Markdown",
+            )
+            return
+
+        lines = ["☀️ *Buenos días! Tu resumen para hoy:*\n"]
+        for event in today_events:
+            lines.append(format_event(event, show_past_marker=False))
+        
+        await context.bot.send_message(
+            chat_id=int(chat_id),
+            text="\n\n".join(lines),
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        logger.error(f"Error en briefing matutino: {e}")
+
+
+async def send_smart_reminders(context: ContextTypes.DEFAULT_TYPE):
+    """Job frecuente (cada 15 min): envía alertas push 15-30 min antes de eventos."""
+    chat_id = config.AUTHORIZED_USER_ID
+    if not chat_id: return
+
+    now = datetime.now(TZ)
+    try:
+        cal = CalendarService()
+        today_events = cal.get_today_events()
+        
+        for event in today_events:
+            desc = event.get("description", "")
+            if COMPLETED_MARKER in desc: continue
+            
+            start = event.get("start", {})
+            if "dateTime" in start:
+                event_dt = datetime.fromisoformat(start["dateTime"]).astimezone(TZ)
+                diff = (event_dt - now).total_seconds() / 60
+                
+                # Alerta si faltan entre 14 y 16 minutos (para el trigger de 15 min)
+                if 14 <= diff <= 16:
+                    summary = event.get("summary", "Sin título")
+                    await context.bot.send_message(
+                        chat_id=int(chat_id),
+                        text=f"🔔 *¡Atención!* Tu evento *{summary}* comienza en 15 minutos.",
+                        parse_mode="Markdown",
+                    )
+    except Exception as e:
+        logger.error(f"Error en smart reminders: {e}")
+
+
+async def send_weekly_report(context: ContextTypes.DEFAULT_TYPE):
+    """Job semanal (Domingo 9 PM): reporte de productividad."""
+    chat_id = config.AUTHORIZED_USER_ID
+    if not chat_id: return
+
+    logger.info("📊 Generando reporte semanal...")
+    try:
+        cal = CalendarService()
+        # Obtener eventos de los últimos 7 días
+        now = datetime.now(TZ)
+        start_week = now - timedelta(days=7)
+        events = cal.list_events(start_week, now)
+        
+        total = len(events)
+        completed = sum(1 for e in events if COMPLETED_MARKER in e.get("description", ""))
+        
+        if total == 0: return
+
+        pct = (completed / total) * 100
+        msg = (
+            f"📊 *Reporte Semanal de Productividad*\n\n"
+            f"✅ Tareas completadas: {completed}\n"
+            f"📅 Total eventos: {total}\n"
+            f"📈 Efectividad: {pct:.1f}%\n\n"
+            f"{'¡Excelente trabajo esta semana! 🔥' if pct > 80 else '¡Buena semana! Vamos por más el lunes. 💪'}"
+        )
+        
+        await context.bot.send_message(
+            chat_id=int(chat_id),
+            text=msg,
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        logger.error(f"Error en reporte semanal: {e}")
+
+
 async def renew_uncompleted_tasks(context: ContextTypes.DEFAULT_TYPE, target_date=None):
     """Job nocturno: renueva tareas no completadas para el día siguiente.
     
@@ -234,26 +332,24 @@ async def renew_uncompleted_tasks(context: ContextTypes.DEFAULT_TYPE, target_dat
 
 
 def setup_reminders(app):
-    """Configura los jobs periódicos de recordatorios.
-
-    Horarios:
-    - Cada 2 horas de 6:30 a 00:00: check de agenda
-    - 23:55: renovación de tareas no completadas
-    """
+    """Configura los jobs periódicos de recordatorios."""
     job_queue = app.job_queue
 
-    # Check de agenda cada 2 horas empezando a las 6:30
+    # 1. Briefing matutino a las 7:30 AM
+    job_queue.run_daily(send_morning_briefing, time=time(7, 30), name="morning_briefing")
+
+    # 2. Smart Reminders (check cada 15 min)
+    job_queue.run_repeating(send_smart_reminders, interval=900, first=60, name="smart_reminders")
+
+    # 3. Reporte Semanal (Domingos 9 PM)
+    # 0 = Lunes, 6 = Domingo
+    job_queue.run_daily(send_weekly_report, time=time(21, 0), days=(6,), name="weekly_report")
+
+    # 4. Check de agenda cada 2 horas (versión original mejorada)
     reminder_times = [
-        time(6, 30),
-        time(8, 30),
-        time(10, 30),
-        time(12, 30),
-        time(14, 30),
-        time(16, 30),
-        time(18, 30),
-        time(20, 30),
-        time(22, 30),
-        time(0, 0),   # Medianoche
+        time(6, 30), time(8, 30), time(10, 30), time(12, 30),
+        time(14, 30), time(16, 30), time(18, 30), time(20, 30),
+        time(22, 30), time(0, 0),
     ]
 
     for t in reminder_times:
@@ -262,52 +358,30 @@ def setup_reminders(app):
             time=t,
             name=f"reminder_{t.strftime('%H%M')}",
         )
-        logger.info(f"📅 Recordatorio programado a las {t.strftime('%H:%M')}")
 
-    # Renovación de tareas a las 23:55
+    # 5. Renovación de tareas a las 23:55
     job_queue.run_daily(
         renew_uncompleted_tasks,
         time=time(23, 55),
         name="renew_tasks",
     )
-    logger.info("🔄 Renovación de tareas programada a las 23:55")
 
-    # === Check al inicio: si se perdió un recordatorio reciente, enviar ahora ===
+    # === Catchups al inicio ===
     now = datetime.now(TZ)
     current_minutes = now.hour * 60 + now.minute
 
-    # Verificar si algún recordatorio debió haber sonado en los últimos 30 min
-    for t in reminder_times:
-        t_minutes = t.hour * 60 + t.minute
-        diff = current_minutes - t_minutes
-        if 0 < diff <= 30:
-            # Se perdió un recordatorio reciente, enviar en 10 segundos
-            logger.info(
-                f"⚠️ Recordatorio de las {t.strftime('%H:%M')} perdido "
-                f"(hace {diff} min). Enviando ahora..."
-            )
-            job_queue.run_once(
-                check_agenda_and_remind,
-                when=10,  # 10 segundos después del inicio
-                name="reminder_startup_catchup",
-            )
-            break  # Solo enviar uno
+    # Si arrancamos después de las 7:30 pero antes de las 10:00, enviar briefing si no se envió
+    if 450 <= current_minutes <= 600:
+        job_queue.run_once(send_morning_briefing, when=15, name="briefing_catchup")
 
-    # Verificar si se perdió la renovación de tareas (23:55)
-    # Si arrancamos entre 23:55 y 04:00 AM, ejecutar renovación para "ayer"
+    # Catchup de renovación (mismo código existente)
     if (23 * 60 + 55) <= current_minutes <= (24 * 60):
-        # Caso: hoy antes de medianoche
-        logger.info("⚠️ Se perdió la renovación de tareas de hoy. Ejecutando ahora...")
         job_queue.run_once(renew_uncompleted_tasks, when=20)
     elif current_minutes <= (4 * 60):
-        # Caso: madrugada (00:00 - 04:00), renovar las de AYER
         yesterday = now.date() - timedelta(days=1)
-        logger.info(f"⚠️ Bot iniciado en la madrugada. Renovando tareas pendientes de ayer ({yesterday})...")
-        
-        # Necesitamos pasar yesterday de alguna forma. APScheduler permite pasar args
         job_queue.run_once(
             lambda context: renew_uncompleted_tasks(context, target_date=yesterday),
-            when=20,
+            when=30,
             name="renew_tasks_yesterday_catchup"
         )
 
