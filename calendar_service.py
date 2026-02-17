@@ -87,12 +87,20 @@ class CalendarService:
             end_dt = start_dt + timedelta(hours=1)
 
         if all_day:
+            # Para Google Calendar, la fecha de fin en eventos de todo el día es EXCLUSIVA.
+            # Si queremos que sea solo hoy (17), la fecha de fin debe ser mañana (18).
+            # Si enviamos la misma fecha, Google se confunde y algunas apps restan 1 día (mostrando 16).
+            if not end_dt or end_dt.date() <= start_dt.date():
+                end_date_str = (start_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+            else:
+                end_date_str = end_dt.strftime("%Y-%m-%d")
+
             event_body = {
                 "summary": summary,
                 "description": description,
                 "visibility": "public",
                 "start": {"date": start_dt.strftime("%Y-%m-%d")},
-                "end": {"date": end_dt.strftime("%Y-%m-%d")},
+                "end": {"date": end_date_str},
             }
         else:
             event_body = {
