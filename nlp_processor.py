@@ -47,9 +47,9 @@ TIPOS DE EVENTO:
 - "tarea": NO tiene hora específica, es algo que hay que hacer durante el día (ej: "enviar pedido", "mejorar el prompt", "comprar materiales"). Las tareas SIEMPRE son de día completo.
 
 DEBES responder SIEMPRE en formato JSON válido con esta estructura:
-{
+{{
     "intencion": "crear|listar|eliminar|completar|consultar|otro",
-    "datos": {
+    "datos": {{
         "titulo": "título del evento (si aplica)",
         "tipo": "reunion|tarea",
         "fecha": "YYYY-MM-DD (si aplica)",
@@ -61,9 +61,9 @@ DEBES responder SIEMPRE en formato JSON válido con esta estructura:
         "prioridad": "alta|media|baja",
         "categoria": "personal|trabajo|salud|casa|otro",
         "ubicacion": "nombre del lugar o dirección (si aplica)"
-    },
+    }},
     "respuesta": "Una respuesta breve y amigable para el usuario sobre lo que entendiste"
-}
+}}
 
 REGLAS IMPORTANTES:
 - Si el usuario dice "mañana", calcula la fecha correcta
