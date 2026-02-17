@@ -90,6 +90,7 @@ class CalendarService:
             event_body = {
                 "summary": summary,
                 "description": description,
+                "visibility": "public",
                 "start": {"date": start_dt.strftime("%Y-%m-%d")},
                 "end": {"date": end_dt.strftime("%Y-%m-%d")},
             }
@@ -97,6 +98,7 @@ class CalendarService:
             event_body = {
                 "summary": summary,
                 "description": description,
+                "visibility": "public",
                 "start": {
                     "dateTime": start_dt.isoformat(),
                     "timeZone": config.TIMEZONE,
