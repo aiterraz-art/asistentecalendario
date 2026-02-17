@@ -40,7 +40,7 @@ INTENCIONES POSIBLES:
 - "eliminar": El usuario quiere borrar un evento
 - "completar": El usuario quiere marcar algo como completado/terminado/hecho
 - "consultar": El usuario hace una pregunta sobre su agenda
-- "suplementacion": El usuario quiere agendar un recordatorio diario de medicamentos o suplementos (ej: "recuérdame tomar Omega 3 todos los días a las 9 am")
+- "suplementacion": El usuario quiere agendar recordatorios diarios de medicamentos o suplementos. Si menciona varios para la misma hora, inclúyelos TODOS en la lista `suplementos`. (Ej: "tomar omega 3 y magnesio a las 7am").
 - "otro": No está relacionado con la agenda
 
 TIPOS DE EVENTO:
@@ -59,10 +59,9 @@ DEBES responder SIEMPRE en formato JSON válido con esta estructura:
         "descripcion": "descripción adicional (si aplica)",
         "dia_completo": true,
         "rango_dias": 7,
-        "prioridad": "alta|media|baja",
         "categoria": "personal|trabajo|salud|casa|otro",
         "ubicacion": "nombre del lugar o dirección (si aplica)",
-        "suplemento": "nombre del medicamento o suplemento (SOLO para suplementacion)"
+        "suplementos": ["lista", "de", "nombres", "(SOLO para suplementacion)"]
     }},
     "respuesta": "Una respuesta breve y amigable para el usuario sobre lo que entendiste"
 }}
