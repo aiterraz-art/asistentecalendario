@@ -17,8 +17,9 @@ from calendar_service import CalendarService, format_event
 logger = logging.getLogger(__name__)
 TZ = pytz.timezone(config.TIMEZONE)
 
-# Prefijo para marcar tareas completadas en la descripción
 COMPLETED_MARKER = "[COMPLETADA]"
+# Prefijo para marcar tareas originales que ya fueron movidas/renovadas
+RENEWED_MARKER = "[RENOVADA]"
 
 
 async def check_agenda_and_remind(context: ContextTypes.DEFAULT_TYPE):
@@ -317,8 +318,8 @@ async def renew_uncompleted_tasks(context: ContextTypes.DEFAULT_TYPE, target_dat
         for event in today_events:
             desc = event.get("description", "")
 
-            # Saltar eventos ya completados
-            if COMPLETED_MARKER in desc:
+            # Saltar eventos ya completados o que ya fueron renovados anteriormente
+            if COMPLETED_MARKER in desc or RENEWED_MARKER in desc:
                 continue
 
             summary = event.get("summary", "")
@@ -357,6 +358,11 @@ async def renew_uncompleted_tasks(context: ContextTypes.DEFAULT_TYPE, target_dat
                     description=new_desc.strip(),
                     all_day=True,
                 )
+                
+                # Marcar el evento original como ya renovado para evitar duplicados en reinicios
+                original_desc = (desc + "\n" + RENEWED_MARKER).strip()
+                cal.update_event(event["id"], {"description": original_desc})
+                
                 renewed.append(summary)
 
         if renewed:
