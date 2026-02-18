@@ -60,6 +60,7 @@ DEBES responder SIEMPRE en formato JSON válido con esta estructura:
         "dia_completo": true,
         "rango_dias": 7,
         "categoria": "personal|trabajo|salud|casa|otro",
+        "prioridad": "alta|media|baja",
         "ubicacion": "nombre del lugar o dirección (si aplica)",
         "suplementos": ["lista", "de", "nombres", "(SOLO para suplementacion)"]
     }},
