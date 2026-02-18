@@ -312,6 +312,15 @@ async def renew_uncompleted_tasks(context: ContextTypes.DEFAULT_TYPE, target_dat
         start_of_day = TZ.localize(datetime.combine(target_date, time.min))
         end_of_day = TZ.localize(datetime.combine(target_date, time.max))
         today_events = cal.list_events(start_of_day, end_of_day)
+
+        # Pre-cargar eventos del día siguiente para evitar duplicados
+        next_day = target_date + timedelta(days=1)
+        next_day_start = TZ.localize(datetime.combine(next_day, datetime.min.time()))
+        next_day_end = TZ.localize(datetime.combine(next_day, datetime.max.time()))
+        next_day_events = cal.list_events(next_day_start, next_day_end)
+        
+        # Guardamos los resúmenes del día siguiente para verificación rápida
+        existing_next_day_summaries = {e.get("summary", "") for e in next_day_events}
         
         renewed = []
 
@@ -327,9 +336,9 @@ async def renew_uncompleted_tasks(context: ContextTypes.DEFAULT_TYPE, target_dat
             end = event.get("end", {})
 
             # Calcular fecha de mañana (respecto a la fecha del evento)
-            next_day = target_date + timedelta(days=1)
-            next_day_start = TZ.localize(datetime.combine(next_day, datetime.min.time()))
-
+            # Nota: next_day y next_day_start ya fueron calculados arriba, pero mantenemos la lógica local si se prefiere
+            # o usamos las variables de arriba. Dado que target_date es fijo, es seguro usar next_day de arriba.
+            
             # === NUEVO: Evitar duplicados para eventos que ya cubren el día siguiente ===
             if "dateTime" in end:
                 end_dt = datetime.fromisoformat(end["dateTime"]).astimezone(TZ)
@@ -346,13 +355,27 @@ async def renew_uncompleted_tasks(context: ContextTypes.DEFAULT_TYPE, target_dat
 
             elif "date" in start:
                 # TAREA de día completo: mover a mañana
+                
+                # Evitar doble pin
+                new_summary = summary if summary.startswith("📌 ") else f"📌 {summary}"
+                
+                # Check de idempotencia: si ya existe en el día siguiente, no crear
+                if new_summary in existing_next_day_summaries:
+                    logger.info(f"Tarea '{new_summary}' ya existe para mañana. Saltando creación.")
+                    # Asegurar que el original tenga la marca de renovado por si falló antes
+                    if RENEWED_MARKER not in desc:
+                        original_desc = (desc + "\n" + RENEWED_MARKER).strip()
+                        cal.update_event(event["id"], {"description": original_desc})
+                    continue
+
                 new_start = TZ.localize(
                     datetime.combine(next_day, datetime.min.time())
                 )
                 new_end = new_start + timedelta(days=1)
                 new_desc = desc + "\n[Renovada - no completada el " + target_date.strftime("%d/%m/%Y") + "]"
+                
                 cal.create_event(
-                    summary=f"📌 {summary}",
+                    summary=new_summary,
                     start_dt=new_start,
                     end_dt=new_end,
                     description=new_desc.strip(),
