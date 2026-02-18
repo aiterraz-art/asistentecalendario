@@ -3,10 +3,13 @@ import os
 import logging
 from datetime import datetime
 from typing import List, Dict
+import pytz
+import config
 
 logger = logging.getLogger(__name__)
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "supplements.json")
+TZ = pytz.timezone(config.TIMEZONE)
 
 class SupplementService:
     def __init__(self):
@@ -82,6 +85,8 @@ class SupplementService:
         """Obtiene suplementos que deben tomarse ahora y no han sido tomados."""
         data = self._load()
         pending = []
+        now_aware = datetime.now(TZ)
+        
         for s in data:
             if not s.get("active", True):
                 continue
@@ -94,8 +99,14 @@ class SupplementService:
             elif s.get("next_reminder"):
                 try:
                     next_rem = datetime.fromisoformat(s["next_reminder"])
-                    if datetime.now() >= next_rem and s["last_taken_date"] != current_date:
+                    
+                    # Asegurar que next_rem tenga timezone si es naive
+                    if next_rem.tzinfo is None:
+                        next_rem = TZ.localize(next_rem)
+                        
+                    if now_aware >= next_rem and s["last_taken_date"] != current_date:
                         pending.append(s)
-                except:
+                except Exception as e:
+                    logger.error(f"Error parsing next_reminder for {s.get('name')}: {e}")
                     pass
         return pending

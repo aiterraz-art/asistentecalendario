@@ -3,6 +3,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler
 from supplement_service import SupplementService
 from datetime import datetime, timedelta
+import pytz
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +79,8 @@ async def supplement_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     
     elif action == "supp_snooze":
-        next_time = datetime.now() + timedelta(minutes=30)
+        tz = pytz.timezone(config.TIMEZONE)
+        next_time = datetime.now(tz) + timedelta(minutes=30)
         service.set_next_reminder(names, next_time.isoformat())
         await query.edit_message_text(
             f"⏳ Entendido. Te volveré a preguntar por *{', '.join(names)}* en 30 minutos. ¡No se te olvide! 💊",
