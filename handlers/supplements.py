@@ -26,9 +26,8 @@ async def handle_suplemento_nlp(update: Update, context: ContextTypes.DEFAULT_TY
         all_supplements = service.get_all()
         
         if not all_supplements:
-            await processing_msg.edit_text(
-                respuesta or "No tienes ningún suplemento registrado aún."
-            )
+            msg = f"{respuesta}\n\n🚫 *No tienes ningún suplemento registrado aún.*" if respuesta else "🚫 *No tienes ningún suplemento registrado aún.*"
+            await processing_msg.edit_text(msg, parse_mode="Markdown")
             return
 
         lines = [f"{respuesta or '💊 Tus suplementos registrados:'}\n"]
