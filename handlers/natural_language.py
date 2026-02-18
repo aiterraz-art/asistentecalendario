@@ -45,7 +45,7 @@ async def handle_natural_language(update: Update, context: ContextTypes.DEFAULT_
         await handle_consultar(update, context, processing_msg, datos, respuesta)
     elif intencion == "suplementacion":
         from handlers.supplements import handle_suplemento_nlp
-        await handle_suplemento_nlp(update, context, processing_msg, datos, respuesta)
+        await handle_suplemento_nlp(update, context, processing_msg, datos, respuesta, intencion_original=intencion)
     else:
         await processing_msg.edit_text(
             respuesta or "No entendí bien. Prueba con algo como:\n"

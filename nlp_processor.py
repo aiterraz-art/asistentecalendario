@@ -39,8 +39,8 @@ INTENCIONES POSIBLES:
 - "listar": El usuario quiere ver sus eventos
 - "eliminar": El usuario quiere borrar un evento
 - "completar": El usuario quiere marcar algo como completado/terminado/hecho
-- "consultar": El usuario hace una pregunta sobre su agenda
-- "suplementacion": El usuario quiere agendar recordatorios diarios de medicamentos o suplementos. Si menciona varios para la misma hora, inclúyelos TODOS en la lista `suplementos`. (Ej: "tomar omega 3 y magnesio a las 7am").
+- "consultar": El usuario hace una pregunta sobre su agenda.
+- "suplementacion": El usuario quiere agendar O consultar recordatorios de medicamentos/suplementos. (Ej: "tomar omega 3...", "¿qué suplementos tomo?"). Si es consulta, poner `datos` vacíos o con `tipo: consultar`.
 - "otro": No está relacionado con la agenda
 
 TIPOS DE EVENTO:

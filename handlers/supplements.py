@@ -8,14 +8,53 @@ import config
 
 logger = logging.getLogger(__name__)
 
-async def handle_suplemento_nlp(update: Update, context: ContextTypes.DEFAULT_TYPE, processing_msg, datos, respuesta):
+async def handle_suplemento_nlp(update: Update, context: ContextTypes.DEFAULT_TYPE, processing_msg, datos, respuesta, intencion_original=None):
     """Procesa el alta de un suplemento detectado por NLP."""
+    
+    # Si la intención es consultar o no hay datos suficientes, listamos los suplementos
+    suplementos = datos.get("suplementos")
+    hora = datos.get("hora_inicio")
+    
+    es_consulta = False
+    if intencion_original == "suplementacion":
+        # Si no hay suplementos ni hora, o si explícitamente se pide consultar (aunque el prompt actual pone datos vacíos)
+        if not suplementos and not hora:
+            es_consulta = True
+            
+    if es_consulta:
+        service = SupplementService()
+        all_supplements = service.get_all()
+        
+        if not all_supplements:
+            await processing_msg.edit_text(
+                respuesta or "No tienes ningún suplemento registrado aún."
+            )
+            return
+
+        lines = [f"{respuesta or '💊 Tus suplementos registrados:'}\n"]
+        
+        # Agrupar por hora
+        by_time = {}
+        for s in all_supplements:
+            if not s.get("active", True): continue
+            t = s["time"]
+            if t not in by_time: by_time[t] = []
+            by_time[t].append(s["name"])
+            
+        for t in sorted(by_time.keys()):
+            names = ", ".join(by_time[t])
+            lines.append(f"• *{t}*: {names}")
+            
+        await processing_msg.edit_text("\n".join(lines), parse_mode="Markdown")
+        return
+
+    # --- Lógica de creación (existente) ---
     suplementos = datos.get("suplementos")
     # Compatibilidad por si Gemini manda 'suplemento' como string
     if not suplementos:
         suplementos = [datos.get("suplemento")] if datos.get("suplemento") else []
     
-    # Asegurar que es lista (si mandó un solo string en suplementos)
+    # Asegurar que es lista
     if isinstance(suplementos, str):
         suplementos = [suplementos]
         
@@ -29,7 +68,7 @@ async def handle_suplemento_nlp(update: Update, context: ContextTypes.DEFAULT_TY
 
     try:
         # Validar formato de hora
-        time_valid = datetime.strptime(hora, "%H:%M")
+        datetime.strptime(hora, "%H:%M")
         
         service = SupplementService()
         added = []
