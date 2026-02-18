@@ -11,7 +11,9 @@ from telegram.ext import (
     CommandHandler,
     MessageHandler,
     filters,
+    Defaults,
 )
+import pytz
 
 import config
 from handlers.start import start_command
@@ -59,8 +61,11 @@ def main():
 
     logger.info("🚀 Iniciando bot de agenda...")
 
+    # Configurar zona horaria por defecto para la JobQueue
+    defaults = Defaults(tzinfo=pytz.timezone(config.TIMEZONE))
+
     # Crear aplicación
-    app = ApplicationBuilder().token(config.TELEGRAM_BOT_TOKEN).build()
+    app = ApplicationBuilder().token(config.TELEGRAM_BOT_TOKEN).defaults(defaults).build()
 
     # === Registrar handlers ===
 

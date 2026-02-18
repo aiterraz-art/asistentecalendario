@@ -412,10 +412,10 @@ def setup_reminders(app):
             name=f"reminder_{t.strftime('%H%M')}",
         )
 
-    # 5. Renovación de tareas a las 23:55
+    # 5. Renovación de tareas a las 23:59
     job_queue.run_daily(
         renew_uncompleted_tasks,
-        time=time(23, 55),
+        time=time(23, 59),
         name="renew_tasks",
     )
 
@@ -428,7 +428,7 @@ def setup_reminders(app):
         job_queue.run_once(send_morning_briefing, when=15, name="briefing_catchup")
 
     # Catchup de renovación (mismo código existente)
-    if (23 * 60 + 55) <= current_minutes <= (24 * 60):
+    if (23 * 60 + 59) <= current_minutes <= (24 * 60):
         job_queue.run_once(renew_uncompleted_tasks, when=20)
     elif current_minutes <= (4 * 60):
         yesterday = now.date() - timedelta(days=1)
