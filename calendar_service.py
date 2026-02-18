@@ -144,6 +144,7 @@ class CalendarService:
                 "colorId": color_id,
                 "start": {"date": start_dt.strftime("%Y-%m-%d")},
                 "end": {"date": end_date_str},
+                "reminders": {"useDefault": False, "overrides": []},
             }
         else:
             event_body = {
@@ -160,13 +161,18 @@ class CalendarService:
                     "dateTime": end_dt.isoformat(),
                     "timeZone": config.TIMEZONE,
                 },
+                "reminders": {"useDefault": False, "overrides": []},
             }
 
         try:
             logger.info(f"Enviando a Google API: {event_body}")
             event = (
                 self.service.events()
-                .insert(calendarId=self.calendar_id, body=event_body)
+                .insert(
+                    calendarId=self.calendar_id,
+                    body=event_body,
+                    sendUpdates="none",
+                )
                 .execute()
             )
             logger.info(f"Evento creado: {event.get('htmlLink')}")
@@ -204,6 +210,7 @@ class CalendarService:
                     calendarId=self.calendar_id,
                     eventId=event_id,
                     body=event,
+                    sendUpdates="none",
                 )
                 .execute()
             )
