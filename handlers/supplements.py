@@ -103,27 +103,45 @@ async def supplement_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.answer()
     
     data = query.data.split("|")
-    action = data[0] # 'supp_done' o 'supp_snooze'
-    names = data[1].split(",") # Lista de nombres de suplementos
+    action = data[0] # 'supp_done', 'supp_snooze', 'supp_t_done' o 'supp_t_snooze'
+    payload = data[1] # Lista de nombres (old) o HH:MM (new)
 
     service = SupplementService()
+    today = datetime.now().strftime("%Y-%m-%d")
+    tz = pytz.timezone(config.TIMEZONE)
     
-    if action == "supp_done":
-        today = datetime.now().strftime("%Y-%m-%d")
+    # NUEVOS: Basados en tiempo (agrupados)
+    if action == "supp_t_done":
+        service.mark_as_taken_by_time(payload, today)
+        await query.edit_message_text(
+            f"✅ ¡Excelente! He marcado como tomados los suplementos de las *{payload}*.\n¡Sigue así! 💪",
+            parse_mode="Markdown"
+        )
+    elif action == "supp_t_snooze":
+        next_time = datetime.now(tz) + timedelta(minutes=30)
+        service.set_next_reminder_by_time(payload, next_time.isoformat())
+        await query.edit_message_text(
+            f"⏳ Entendido. Te volveré a preguntar por los suplementos de las *{payload}* en 30 minutos. ¡No se te olvide! 💊",
+            parse_mode="Markdown"
+        )
+    
+    # ANTERIORES: Basados en nombres (para compatibilidad)
+    elif action == "supp_done":
+        names = payload.split(",")
         service.mark_as_taken(names, today)
         await query.edit_message_text(
             f"✅ ¡Excelente! He marcado como tomados: *{', '.join(names)}*.\n¡Sigue así! 💪",
             parse_mode="Markdown"
         )
-    
     elif action == "supp_snooze":
-        tz = pytz.timezone(config.TIMEZONE)
+        names = payload.split(",")
         next_time = datetime.now(tz) + timedelta(minutes=30)
         service.set_next_reminder(names, next_time.isoformat())
         await query.edit_message_text(
             f"⏳ Entendido. Te volveré a preguntar por *{', '.join(names)}* en 30 minutos. ¡No se te olvide! 💊",
             parse_mode="Markdown"
         )
+
 
 def get_supplement_callback_handler() -> CallbackQueryHandler:
     return CallbackQueryHandler(supplement_callback, pattern=r"^supp_")

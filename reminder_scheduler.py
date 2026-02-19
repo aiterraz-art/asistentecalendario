@@ -259,35 +259,42 @@ async def check_supplements_and_remind(context: ContextTypes.DEFAULT_TYPE):
         if not pending:
             return
 
-        # Agrupar suplementos por mensaje (en este bot solo hay un usuario, así que todos juntos)
-        names = [s["name"] for s in pending]
-        names_str = ", ".join(names)
-        
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ Hecho", callback_data=f"supp_done|{','.join(names)}"),
-                InlineKeyboardButton("⏳ en 30 min", callback_data=f"supp_snooze|{','.join(names)}"),
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        # Agrupar por hora de toma para evitar errores de longitud en callback_data
+        by_time = {}
+        for s in pending:
+            t = s["time"]
+            if t not in by_time: by_time[t] = []
+            by_time[t].append(s)
 
-        await context.bot.send_message(
-            chat_id=int(chat_id),
-            text=f"💊 *¡Hora de tu suplementación!* ({now.strftime('%H:%M')})\n\n"
-                 f"Debes tomar:\n• *{names_str}* \n\n"
-                 f"¿Ya lo hiciste?",
-            parse_mode="Markdown",
-            reply_markup=reply_markup
-        )
-        
-        # Para evitar enviar el mismo mensaje cada minuto de esa hora, 
-        # marcamos el 'next_reminder' como +1 minuto temporalmente si es la hora exacta,
-        # o simplemente confiamos en que 'get_pending' filtre los que ya enviamos reintento.
-        # Mejor: si es la hora exacta, ponemos un reintento en 30 min por defecto para que no se repita.
-        service.set_next_reminder(names, (now + timedelta(minutes=30)).isoformat())
+        for time_key, supps in by_time.items():
+            names = [s["name"] for s in supps]
+            names_str = ", ".join(names)
+            
+            # Usamos la hora como identificador en el callback para ahorrar espacio
+            # Formato: supp_done_time|HH:MM
+            keyboard = [
+                [
+                    InlineKeyboardButton("✅ Hecho", callback_data=f"supp_t_done|{time_key}"),
+                    InlineKeyboardButton("⏳ en 30 min", callback_data=f"supp_t_snooze|{time_key}"),
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await context.bot.send_message(
+                chat_id=int(chat_id),
+                text=f"💊 *¡Hora de tu suplementación!* (Programada: {time_key})\n\n"
+                     f"Debes tomar:\n• *{names_str}* \n\n"
+                     f"¿Ya lo hiciste?",
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
+            
+            # Marcamos el reintento para este grupo para que no se repita en el próximo minuto
+            service.set_next_reminder_by_time(time_key, (now + timedelta(minutes=30)).isoformat())
 
     except Exception as e:
         logger.error(f"Error en check de suplementos: {e}")
+
 
 
 async def renew_uncompleted_tasks(context: ContextTypes.DEFAULT_TYPE, target_date=None):
