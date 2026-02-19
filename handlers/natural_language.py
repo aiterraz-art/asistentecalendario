@@ -87,6 +87,7 @@ async def handle_crear(update, context, processing_msg, datos, respuesta):
             f"{respuesta}\n\n❓ No pude identificar la fecha. "
             "¿Puedes incluir cuándo sería?"
         )
+        return
     
     # Extraer nuevos metadatos
     prioridad = datos.get("prioridad", "media")
@@ -102,21 +103,33 @@ async def handle_crear(update, context, processing_msg, datos, respuesta):
     try:
         from datetime import timedelta, time as dt_time
         fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
-        if dia_completo or not hora_inicio:
-            start_dt = TZ.localize(datetime.combine(fecha, datetime.min.time()))
+        
+        # Determinar si es todo el día: si el modelo dice que sí, o si no hay hora de inicio
+        # Excepción: si es suplementación (pero aquí estamos en handle_crear, así que no aplica)
+        is_all_day = dia_completo or not hora_inicio
+        
+        if is_all_day:
+            start_dt = TZ.localize(datetime.combine(fecha, dt_time.min))
             end_dt = start_dt + timedelta(days=1)
             all_day = True
             time_str = "Todo el día"
         else:
-            hora = datetime.strptime(hora_inicio, "%H:%M").time()
-            start_dt = TZ.localize(datetime.combine(fecha, hora))
-            if hora_fin:
-                h_fin = datetime.strptime(hora_fin, "%H:%M").time()
-                end_dt = TZ.localize(datetime.combine(fecha, h_fin))
-            else:
-                end_dt = start_dt + timedelta(hours=1)
-            all_day = False
-            time_str = f"{hora_inicio}"
+            try:
+                hora = datetime.strptime(hora_inicio, "%H:%M").time()
+                start_dt = TZ.localize(datetime.combine(fecha, hora))
+                if hora_fin:
+                    h_fin = datetime.strptime(hora_fin, "%H:%M").time()
+                    end_dt = TZ.localize(datetime.combine(fecha, h_fin))
+                else:
+                    end_dt = start_dt + timedelta(hours=1)
+                all_day = False
+                time_str = f"{hora_inicio}"
+            except ValueError:
+                # Fallback a todo el día si la hora está mal formateada
+                start_dt = TZ.localize(datetime.combine(fecha, dt_time.min))
+                end_dt = start_dt + timedelta(days=1)
+                all_day = True
+                time_str = "Todo el día"
 
 
         # Guardar en context para la confirmación

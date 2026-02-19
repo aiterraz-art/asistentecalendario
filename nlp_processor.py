@@ -40,7 +40,7 @@ INTENCIONES POSIBLES:
 - "eliminar": El usuario quiere borrar un evento
 - "completar": El usuario quiere marcar algo como completado/terminado/hecho
 - "consultar": El usuario hace una pregunta sobre su agenda.
-- "suplementacion": El usuario quiere agendar O consultar recordatorios de medicamentos, suplementos, vitaminas o toma de sustancias diarias. (Ej: "tomar omega 3...", "anotar test a las 9:35", "¿qué suplementos tomo?"). IMPORTANTE: Si el usuario menciona un nombre de sustancia y una hora recurrente, suele ser esta intención.
+- "suplementacion": El usuario quiere agendar O consultar recordatorios de MEDICAMENTOS, SUPLEMENTOS, VITAMINAS o toma de sustancias diarias (ej: "tomar omega 3...", "anotar GHK a las 10:00", "¿qué suplementos tomo?"). IMPORTANTE: Solo usar esta intención si se menciona una sustancia/remedio específico. Si es un evento general o tarea (ej: "Anotar Test", "Anotar reunión"), usar "crear".
 
 - "otro": No está relacionado con la agenda
 
