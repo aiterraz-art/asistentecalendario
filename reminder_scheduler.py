@@ -243,7 +243,9 @@ async def send_weekly_report(context: ContextTypes.DEFAULT_TYPE):
 async def check_supplements_and_remind(context: ContextTypes.DEFAULT_TYPE):
     """Job frecuente (cada minuto): verifica si hay suplementos por tomar."""
     chat_id = config.AUTHORIZED_USER_ID
-    if not chat_id: return
+    if not chat_id: 
+        logger.warning("Job de suplementos ignorado: AUTHORIZED_USER_ID no configurado.")
+        return
 
     now = datetime.now(TZ)
     current_time = now.strftime("%H:%M")
@@ -254,10 +256,16 @@ async def check_supplements_and_remind(context: ContextTypes.DEFAULT_TYPE):
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
         
         service = SupplementService()
+        all_supps = service.get_all()
         pending = service.get_pending(current_time, current_date)
 
         if not pending:
+            # Solo loggear si hay suplementos registrados pero ninguno pendiente
+            if all_supps:
+                logger.info(f"Check suplementos: {len(all_supps)} registrados, 0 pendientes a las {current_time}")
             return
+
+        logger.info(f"🚀 {len(pending)} suplementos pendientes detectedos a las {current_time}")
 
         # Agrupar por hora de toma para evitar errores de longitud en callback_data
         by_time = {}
@@ -270,8 +278,9 @@ async def check_supplements_and_remind(context: ContextTypes.DEFAULT_TYPE):
             names = [s["name"] for s in supps]
             names_str = ", ".join(names)
             
+            logger.info(f"Enviando alerta para grupo de las {time_key}: {names_str}")
+
             # Usamos la hora como identificador en el callback para ahorrar espacio
-            # Formato: supp_done_time|HH:MM
             keyboard = [
                 [
                     InlineKeyboardButton("✅ Hecho", callback_data=f"supp_t_done|{time_key}"),
@@ -291,9 +300,11 @@ async def check_supplements_and_remind(context: ContextTypes.DEFAULT_TYPE):
             
             # Marcamos el reintento para este grupo para que no se repita en el próximo minuto
             service.set_next_reminder_by_time(time_key, (now + timedelta(minutes=30)).isoformat())
+            logger.info(f"Alerta enviada y reintento programado para las {time_key}")
 
     except Exception as e:
-        logger.error(f"Error en check de suplementos: {e}")
+        logger.error(f"Error CRÍTICO en check de suplementos: {e}", exc_info=True)
+
 
 
 

@@ -83,6 +83,8 @@ def main():
     app.add_handler(get_delete_callback_handler())
     app.add_handler(get_completar_callback_handler())
     app.add_handler(get_nlp_callback_handler())
+    from handlers.supplements import debug_suplementos_command
+    app.add_handler(CommandHandler("debug_suplementos", check_authorized(debug_suplementos_command)))
     app.add_handler(get_supplement_callback_handler())
 
     # Mensajes de texto libre → NLP (va último, catch-all)

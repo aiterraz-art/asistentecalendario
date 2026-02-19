@@ -143,5 +143,50 @@ async def supplement_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
 
+async def debug_suplementos_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Comando de depuración para ver el estado interno de los suplementos."""
+    service = SupplementService()
+    all_s = service.get_all()
+    
+    if not all_s:
+        await update.message.reply_text("No hay suplementos registrados.")
+        return
+        
+    lines = ["🧪 *Estado de Suplementos (Debug):*"]
+    tz = pytz.timezone(config.TIMEZONE)
+    now = datetime.now(tz)
+    
+    for s in all_s:
+        status = "✅" if s.get("active", True) else "❌"
+        line = [
+            f"{status} *{s['name']}*",
+            f"  - ID: `{s.get('id', 'N/A')}`",
+            f"  - Hora: `{s['time']}`",
+            f"  - Última vez: `{s.get('last_taken_date', 'Nunca')}`"
+        ]
+        
+        next_rem = s.get("next_reminder")
+        if next_rem:
+            try:
+                nr_dt = datetime.fromisoformat(next_rem)
+                if nr_dt.tzinfo is None:
+                    nr_dt = tz.localize(nr_dt)
+                
+                diff = nr_dt - now
+                diff_sec = int(diff.total_seconds())
+                if diff_sec > 0:
+                    line.append(f"  - Reintento en: `{diff_sec // 60}m {diff_sec % 60}s`")
+                else:
+                    line.append(f"  - Reintento: `VENCIDO` (hace {-diff_sec // 60}m)")
+            except:
+                line.append(f"  - Reintento: `{next_rem}`")
+        else:
+              line.append("  - Reintento: `Ninguno` (esperando hora exacta)")
+              
+        lines.append("\n".join(line))
+        
+    await update.message.reply_text("\n\n".join(lines), parse_mode="Markdown")
+
+
 def get_supplement_callback_handler() -> CallbackQueryHandler:
     return CallbackQueryHandler(supplement_callback, pattern=r"^supp_")
