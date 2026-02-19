@@ -102,21 +102,22 @@ async def handle_crear(update, context, processing_msg, datos, respuesta):
     try:
         from datetime import timedelta, time as dt_time
         fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
-        if dia_completo or not hora_str:
+        if dia_completo or not hora_inicio:
             start_dt = TZ.localize(datetime.combine(fecha, datetime.min.time()))
             end_dt = start_dt + timedelta(days=1)
             all_day = True
             time_str = "Todo el día"
         else:
-            hora = datetime.strptime(hora_str, "%H:%M").time()
+            hora = datetime.strptime(hora_inicio, "%H:%M").time()
             start_dt = TZ.localize(datetime.combine(fecha, hora))
-            if hora_fin_str:
-                hora_fin = datetime.strptime(hora_fin_str, "%H:%M").time()
-                end_dt = TZ.localize(datetime.combine(fecha, hora_fin))
+            if hora_fin:
+                h_fin = datetime.strptime(hora_fin, "%H:%M").time()
+                end_dt = TZ.localize(datetime.combine(fecha, h_fin))
             else:
                 end_dt = start_dt + timedelta(hours=1)
             all_day = False
-            time_str = f"{hora_str}"
+            time_str = f"{hora_inicio}"
+
 
         # Guardar en context para la confirmación
         context.user_data["confirm_event"] = {

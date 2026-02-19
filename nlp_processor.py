@@ -40,7 +40,8 @@ INTENCIONES POSIBLES:
 - "eliminar": El usuario quiere borrar un evento
 - "completar": El usuario quiere marcar algo como completado/terminado/hecho
 - "consultar": El usuario hace una pregunta sobre su agenda.
-- "suplementacion": El usuario quiere agendar O consultar recordatorios de medicamentos/suplementos. (Ej: "tomar omega 3...", "¿qué suplementos tomo?"). Si es consulta, poner `datos` vacíos o con `tipo: consultar`.
+- "suplementacion": El usuario quiere agendar O consultar recordatorios de medicamentos, suplementos, vitaminas o toma de sustancias diarias. (Ej: "tomar omega 3...", "anotar test a las 9:35", "¿qué suplementos tomo?"). IMPORTANTE: Si el usuario menciona un nombre de sustancia y una hora recurrente, suele ser esta intención.
+
 - "otro": No está relacionado con la agenda
 
 TIPOS DE EVENTO:
